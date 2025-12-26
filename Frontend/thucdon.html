@@ -1,0 +1,405 @@
+<!-- thucdon.html (FIXED) -->
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Thực đơn món ăn</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
+
+  <style>
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+
+    .price {
+      font-weight: 700;
+      color: #e63946;
+    }
+
+    .card-img-top {
+      height: 180px;
+      object-fit: cover;
+    }
+
+    .card {
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body class="bg-light">
+  <div class="container py-4">
+    <div id="alertBox"></div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <h2 class="mb-1 text-danger">🔥 THỰC ĐƠN MÓN ĂN</h2>
+        <input type="text" id="searchInput" class="form-control mt-2" style="max-width: 300px;"
+          placeholder="🔍 Tìm kiếm món ăn theo tên...">
+      </div>
+
+      <button class="btn btn-outline-primary position-relative" onclick="goToCart()">
+        <i class="bi bi-cart3 fs-4"></i>
+        <span id="cartCount" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+          0
+        </span>
+      </button>
+    </div>
+
+    <div class="row g-4" id="monAnContainer"></div>
+
+    <div class="d-flex justify-content-center mt-4">
+      <nav aria-label="Phân trang món ăn">
+        <ul class="pagination mb-0" id="pagination"></ul>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Modal chi tiết -->
+  <div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="detailTitle">Chi tiết món ăn</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-5">
+              <img id="detailImg" src="" alt="Ảnh món" class="img-fluid rounded">
+            </div>
+            <div class="col-md-7">
+              <h4 id="detailTen"></h4>
+              <p class="mb-1">
+                <strong>Giá:</strong> <span id="detailGia" class="price"></span>
+              </p>
+              <p class="mb-1">
+                <strong>Trạng thái:</strong> <span id="detailTrangThai" class="badge bg-success"></span>
+              </p>
+              <p class="mt-3">
+                <strong>Mô tả:</strong> <span id="detailMoTa"></span>
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" id="detailAddCartBtn">Thêm vào giỏ hàng</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal thêm giỏ thành công -->
+  <div class="modal fade" id="addCartModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-body text-center">
+          <i class="bi bi-check-circle-fill text-success fs-1 mb-2"></i>
+          <p class="mb-1">Đã thêm vào giỏ hàng:</p>
+          <p class="fw-bold" id="addCartName"></p>
+          <button type="button" class="btn btn-primary btn-sm mt-2" data-bs-dismiss="modal">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    // API menu qua gateway
+    const API = "http://localhost:3000/api/monan/monan";
+    const PLACEHOLDER_IMG = "https://via.placeholder.com/400x250.png?text=No+Image";
+
+    // Pagination & Search
+    const PAGE_SIZE = 8;
+    let allMonAn = [];
+    let filteredMonAn = [];
+    let currentPage = 1;
+    let currentSearch = "";
+
+    // Cart (localStorage)
+    const CART_KEY = "cartItems";
+    let currentDetailItem = null;
+
+    function showAlert(message, type = "danger") {
+      const box = document.getElementById("alertBox");
+      box.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      `;
+    }
+
+    function formatPrice(value) {
+      const num = Number(value);
+      if (isNaN(num)) return value;
+      return new Intl.NumberFormat("vi-VN").format(num) + "đ";
+    }
+
+    // ===== API FETCH (tự gắn Bearer token) =====
+    async function apiFetch(url, options = {}) {
+      const token = localStorage.getItem("token");
+
+      const headers = {
+        ...(options.headers || {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      };
+
+      return fetch(url, { ...options, headers });
+    }
+
+    // ===== CART =====
+    function getCart() {
+      try { return JSON.parse(localStorage.getItem(CART_KEY)) || []; }
+      catch { return []; }
+    }
+    function saveCart(cart) { localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
+    function getCartCount() {
+      const cart = getCart();
+      return cart.reduce((sum, item) => sum + (item.qty || 0), 0);
+    }
+    function updateCartIcon() {
+      document.getElementById("cartCount").textContent = getCartCount();
+    }
+    function goToCart() { window.location.href = "gdgiohangthemma.html"; }
+
+    // ===== LOAD MENU =====
+    async function loadMonAn() {
+      try {
+        const res = await apiFetch(API, { method: "GET" });
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            // token hết hạn / thiếu token
+            localStorage.removeItem("token");
+            // không xóa user nếu bạn muốn vẫn nhớ role, nhưng thường nên xóa
+            // localStorage.removeItem("user");
+            showAlert("Bạn chưa đăng nhập hoặc token hết hạn. Vui lòng đăng nhập lại!", "warning");
+            // window.location.href = "gdlogin.html";
+            return;
+          }
+          if (res.status === 403) {
+            showAlert("Bạn không có quyền xem danh sách món ăn!", "danger");
+            return;
+          }
+
+          const text = await res.text().catch(() => "");
+          console.error("API error:", res.status, text);
+          throw new Error("Lỗi API " + res.status);
+        }
+
+        const data = await res.json();
+
+        if (!Array.isArray(data) || data.length === 0) {
+          document.getElementById("monAnContainer").innerHTML = "<p>Hiện chưa có món ăn nào.</p>";
+          document.getElementById("pagination").innerHTML = "";
+          return;
+        }
+
+        allMonAn = data;
+        applyFilter();
+      } catch (err) {
+        console.error(err);
+        showAlert("Không tải được danh sách món ăn!", "danger");
+      }
+    }
+
+    // ===== FILTER =====
+    function applyFilter() {
+      const keyword = currentSearch.trim().toLowerCase();
+
+      if (!keyword) {
+        filteredMonAn = allMonAn.slice();
+      } else {
+        filteredMonAn = allMonAn.filter(ma =>
+          (ma.TenMA || "").toLowerCase().includes(keyword)
+        );
+      }
+
+      currentPage = 1;
+      renderMonAnPage();
+    }
+
+    // ===== RENDER PAGE =====
+    function renderMonAnPage() {
+      const container = document.getElementById("monAnContainer");
+      const pag = document.getElementById("pagination");
+      container.innerHTML = "";
+      pag.innerHTML = "";
+
+      const list = filteredMonAn;
+      const total = list.length;
+
+      if (total === 0) {
+        container.innerHTML = "<p>Không tìm thấy món ăn phù hợp.</p>";
+        return;
+      }
+
+      const totalPages = Math.ceil(total / PAGE_SIZE);
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      const startIndex = (currentPage - 1) * PAGE_SIZE;
+      const endIndex = startIndex + PAGE_SIZE;
+      const pageData = list.slice(startIndex, endIndex);
+
+      pageData.forEach((ma) => {
+        const col = document.createElement("div");
+        col.className = "col-12 col-sm-6 col-md-4 col-lg-3";
+
+        const statusText = ma.TrangThai || "";
+        const isHetHang = statusText.toLowerCase().includes("hết");
+
+        col.innerHTML = `
+          <div class="card h-100 shadow-sm">
+            <img src="${ma.AnhMon || PLACEHOLDER_IMG}" class="card-img-top" alt="${ma.TenMA || ""}">
+            <div class="card-body d-flex flex-column">
+              <h5 class="card-title">${ma.TenMA || ""}</h5>
+              <p class="mb-1"><span class="price">${formatPrice(ma.Gia)}</span></p>
+              <p class="mb-1"><small class="text-muted">${statusText}</small></p>
+              <p class="card-text" style="font-size: 0.9rem;">${ma.MoTa || ""}</p>
+
+              <div class="mt-auto pt-2">
+                <button class="btn btn-primary btn-sm w-100 btn-add-cart" ${isHetHang ? "disabled" : ""}>
+                  ${isHetHang ? "Hết hàng" : "Thêm vào giỏ hàng"}
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        container.appendChild(col);
+
+        const cardEl = col.querySelector(".card");
+        const addBtn = col.querySelector(".btn-add-cart");
+
+        cardEl.addEventListener("click", () => openDetailModal(ma));
+
+        if (!isHetHang && addBtn) {
+          addBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            addToCart(ma);
+          });
+        }
+      });
+
+      renderPagination(totalPages);
+    }
+
+    // ===== PAGINATION =====
+    function renderPagination(totalPages) {
+      const pag = document.getElementById("pagination");
+      pag.innerHTML = "";
+
+      const prevLi = document.createElement("li");
+      prevLi.className = "page-item" + (currentPage === 1 ? " disabled" : "");
+      prevLi.innerHTML = `<button class="page-link">Trước</button>`;
+      prevLi.onclick = () => {
+        if (currentPage > 1) {
+          currentPage--;
+          renderMonAnPage();
+        }
+      };
+      pag.appendChild(prevLi);
+
+      const infoLi = document.createElement("li");
+      infoLi.className = "page-item disabled";
+      infoLi.innerHTML = `<span class="page-link">Trang ${currentPage} / ${totalPages}</span>`;
+      pag.appendChild(infoLi);
+
+      const nextLi = document.createElement("li");
+      nextLi.className = "page-item" + (currentPage === totalPages ? " disabled" : "");
+      nextLi.innerHTML = `<button class="page-link">Sau</button>`;
+      nextLi.onclick = () => {
+        if (currentPage < totalPages) {
+          currentPage++;
+          renderMonAnPage();
+        }
+      };
+      pag.appendChild(nextLi);
+    }
+
+    // ===== DETAIL MODAL =====
+    function openDetailModal(ma) {
+      currentDetailItem = ma;
+
+      document.getElementById("detailImg").src = ma.AnhMon || PLACEHOLDER_IMG;
+      document.getElementById("detailTen").textContent = ma.TenMA || "";
+      document.getElementById("detailTitle").textContent = ma.TenMA || "Chi tiết món ăn";
+      document.getElementById("detailGia").textContent = formatPrice(ma.Gia);
+      document.getElementById("detailTrangThai").textContent = ma.TrangThai || "";
+      document.getElementById("detailMoTa").textContent = ma.MoTa || "";
+
+      const badge = document.getElementById("detailTrangThai");
+      badge.className = "badge " + (
+        (ma.TrangThai || "").toLowerCase().includes("hết") ? "bg-secondary" : "bg-success"
+      );
+
+      new bootstrap.Modal(document.getElementById("detailModal")).show();
+    }
+
+    // ===== ADD TO CART =====
+    function addToCart(ma) {
+      const status = (ma.TrangThai || "").toLowerCase();
+      if (status.includes("hết")) return;
+
+      const cart = getCart();
+      const id = ma.IDMA;
+      const name = ma.TenMA;
+      const price = Number(ma.Gia) || 0;
+      const img = ma.AnhMon || PLACEHOLDER_IMG;
+
+      const existing = cart.find(item => item.id === id);
+      if (existing) existing.qty += 1;
+      else cart.push({ id, name, price, qty: 1, img });
+
+      saveCart(cart);
+      updateCartIcon();
+      showAddToCartModal(name);
+    }
+
+    function showAddToCartModal(name) {
+      document.getElementById("addCartName").textContent = name;
+      new bootstrap.Modal(document.getElementById("addCartModal")).show();
+    }
+
+    // ===== INIT =====
+    document.addEventListener("DOMContentLoaded", () => {
+      // chặn role Bếp (client-side)
+      const userStr = localStorage.getItem("user");
+      const user = userStr ? JSON.parse(userStr) : null;
+      if (user && user.VaiTro === "Bếp") {
+        alert("Trang thực đơn này dành cho Nhân viên và Quản lý. Bếp không cần sử dụng trang này.");
+        window.location.href = "gdtrangchu.html";
+        return;
+      }
+
+      // search
+      document.getElementById("searchInput").addEventListener("input", (e) => {
+        currentSearch = e.target.value;
+        applyFilter();
+      });
+
+      // cart badge
+      updateCartIcon();
+
+      // button add inside detail modal
+      document.getElementById("detailAddCartBtn").addEventListener("click", () => {
+        if (currentDetailItem) addToCart(currentDetailItem);
+      });
+
+      // load menu
+      loadMonAn();
+    });
+  </script>
+</body>
+
+</html>

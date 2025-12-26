@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Giỏ hàng của bạn</title>
+
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+  <style>
+    body {
+      background-color: #fafafa;
+      font-family: Arial, sans-serif;
+    }
+
+    .cart-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #ddd;
+      padding: 10px 0;
+    }
+
+    .cart-item img {
+      width: 70px;
+      height: 70px;
+      border-radius: 8px;
+      object-fit: cover;
+    }
+
+    .cart-item .info {
+      flex: 1;
+    }
+
+    .cart-item .remove-btn {
+      cursor: pointer;
+      color: red;
+      font-size: 18px;
+    }
+
+    .summary-box {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+  </style>
+</head>
+
+<body class="p-4">
+  <!-- TOP BAR -->
+  <div class="bg-danger d-flex flex-row mb-3 align-items-center justify-content-between" style="padding: 5px 20px;">
+    <div class="d-flex flex-row">
+      <a style="color:#ccc;">1900 6750</a>
+      <a style="color:#ccc; margin-left:20px;">Thứ 2 - Chủ Nhật 9:00 - 18:00</a>
+
+      <a href="gdtrangchu.html" style="color:white; margin-left:100px;">Trang chủ</a>
+      <a href="thucdon.html" style="color:white; margin-left:40px;">Thực đơn</a>
+    </div>
+
+    <div id="authArea" class="d-flex align-items-center">
+      <div id="guestArea">
+        <a href="gdlogin.html" style="color:#fff; margin-right:15px;">Đăng nhập</a>
+        <a href="gdsignup.html" style="color:#fff;">Đăng ký</a>
+      </div>
+
+      <div id="userArea" style="display:none;">
+        <span id="welcomeText" style="color:#fff; margin-right:15px;"></span>
+        <button id="logoutBtn" class="btn btn-sm btn-light">Đăng xuất</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <h2 class="text-center text-primary mb-4">🛒 Giỏ hàng của bạn</h2>
+
+    <div class="row">
+      <!-- FORM -->
+      <div class="col-md-4 mb-4">
+        <h5 class="text-success">Thông tin đơn hàng</h5>
+        <form id="shippingForm">
+          <div class="form-group">
+            <label>Họ và tên</label>
+            <input type="text" id="customerName" class="form-control">
+          </div>
+          <div class="form-group">
+            <label>Ghi chú</label>
+            <textarea id="note" class="form-control"></textarea>
+          </div>
+        </form>
+      </div>
+
+      <!-- CART -->
+      <div class="col-md-5 mb-4">
+        <h5 class="text-info">Sản phẩm đã thêm</h5>
+        <div id="cartList" class="bg-white p-3 rounded shadow-sm"></div>
+        <div class="text-right mt-2">
+          <button class="btn btn-danger btn-sm" onclick="clearCart()">🗑️ Xóa toàn bộ</button>
+        </div>
+      </div>
+
+      <!-- SUMMARY -->
+      <div class="col-md-3">
+        <div class="summary-box">
+          <h5>Tóm tắt đơn hàng</h5>
+          <div class="d-flex justify-content-between">
+            <span>Tạm tính:</span>
+            <span id="subtotal">0đ</span>
+          </div>
+          <hr>
+          <div class="d-flex justify-content-between font-weight-bold">
+            <span>Tổng cộng:</span>
+            <span id="total">0đ</span>
+          </div>
+          <hr>
+          <button id="btnDatHang" class="btn btn-primary w-100">Đặt hàng</button>
+          <a href="thucdon.html" class="btn btn-link d-block text-center">← Quay lại</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CART SCRIPT -->
+  <script>
+    const CART_KEY = "cartItems";
+
+    function getCart() {
+      try { return JSON.parse(localStorage.getItem(CART_KEY)) || []; }
+      catch { return []; }
+    }
+
+    function saveCart(cart) {
+      localStorage.setItem(CART_KEY, JSON.stringify(cart));
+    }
+
+    function removeItem(name) {
+      // 🔧 FIX: escape dấu ' trong tên món để tránh lỗi JS
+      const cart = getCart().filter(i => i.name !== name);
+      saveCart(cart);
+      renderCart();
+    }
+
+    function clearCart() {
+      localStorage.removeItem(CART_KEY);
+      renderCart();
+    }
+
+    function renderCart() {
+      const cart = getCart();
+      const box = document.getElementById("cartList");
+
+      if (!cart.length) {
+        box.innerHTML = "<p>🛍️ Giỏ hàng trống</p>";
+        document.getElementById("subtotal").textContent = "0đ";
+        document.getElementById("total").textContent = "0đ";
+        return;
+      }
+
+      let total = 0;
+      box.innerHTML = cart.map(i => {
+        total += i.price * i.qty;
+        return `
+          <div class="cart-item">
+            <img src="${i.img}">
+            <div class="info">
+              <strong>${i.name}</strong><br>
+              <small>${i.price.toLocaleString("vi-VN")}đ × ${i.qty}</small>
+            </div>
+            <span class="remove-btn" onclick="removeItem('${i.name.replace(/'/g, "\\'")}')">
+              <i class="bi bi-trash"></i>
+            </span>
+          </div>
+        `;
+      }).join("");
+
+      document.getElementById("subtotal").textContent = total.toLocaleString("vi-VN") + "đ";
+      document.getElementById("total").textContent = total.toLocaleString("vi-VN") + "đ";
+    }
+
+    document.addEventListener("DOMContentLoaded", renderCart);
+  </script>
+
+  <!-- ORDER SCRIPT -->
+  <script>
+    document.getElementById("btnDatHang").addEventListener("click", async () => {
+      const user = JSON.parse(localStorage.getItem("user") || "null");
+      const token = localStorage.getItem("token"); // 🔧 FIX: cần token khi gọi backend
+      const cart = getCart();
+
+      // 🔧 FIX: chuẩn hóa vai trò (tránh sai dấu)
+      const role = (user?.VaiTro || "").toLowerCase();
+
+      if (!user || (role !== "nhân viên" && role !== "quản lý")) {
+        alert("Chỉ Nhân viên và Quản lý được đặt hàng");
+        window.location.href = "gdlogin.html";
+        return;
+      }
+
+      if (!cart.length) {
+        alert("Giỏ hàng trống");
+        return;
+      }
+
+      const TenKhachHang = document.getElementById("customerName").value.trim();
+      if (!TenKhachHang) {
+        alert("Vui lòng nhập tên khách");
+        return;
+      }
+
+      const orderData = {
+        IDNV: user.IDNV,
+        TenKhachHang,
+        GhiChu: document.getElementById("note").value.trim(),
+        ChiTiet: cart.map(i => ({
+          IDMA: i.id,
+          SoLuong: i.qty,
+          DonGia: i.price
+        }))
+      };
+      console.log("orderData gửi lên:", orderData);
+      console.log("ChiTiet:", orderData.ChiTiet);
+      try {
+        const res = await fetch("http://localhost:3000/api/order/create", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token // 🔧 FIX: thiếu Authorization
+          },
+          body: JSON.stringify(orderData)
+        });
+
+        if (!res.ok) throw new Error("API error");
+
+        alert("✅ Đặt hàng thành công");
+        clearCart();
+        document.getElementById("shippingForm").reset();
+      } catch (e) {
+        alert("❌ Không thể kết nối server");
+        console.error(e);
+      }
+    });
+  </script>
+
+  <!-- AUTH SCRIPT -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const user = JSON.parse(localStorage.getItem("user") || "null");
+
+      if (!user) {
+        alert("Bạn chưa đăng nhập");
+        window.location.href = "gdlogin.html";
+        return;
+      }
+
+      document.getElementById("guestArea").style.display = "none";
+      document.getElementById("userArea").style.display = "flex";
+      document.getElementById("welcomeText").textContent =
+        `Xin chào, ${user.TenNV || user.Username}`;
+
+      document.getElementById("logoutBtn").onclick = () => {
+        localStorage.clear();
+        window.location.href = "gdlogin.html";
+      };
+    });
+  </script>
+</body>
+
+</html>

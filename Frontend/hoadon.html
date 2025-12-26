@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Danh sách hóa đơn (Quản lý & Bếp)</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+
+  <style>
+    .badge { font-size: 0.85rem; padding: 4px 8px; border-radius: 999px; }
+    .table-hover tbody tr { cursor: pointer; }
+    .detail-items-wrapper { max-height: 300px; overflow-y: auto; }
+  </style>
+</head>
+
+<body class="py-4">
+
+<!-- 🔧 FIX: GIỮ DUY NHẤT 1 HEADER (XÓA HEADER TRÙNG Ở DƯỚI) -->
+<div class="bg-danger text-white mb-3">
+  <div class="container d-flex justify-content-between align-items-center py-1">
+    <div>
+      <i class="bi bi-egg-fried me-1"></i> Hệ thống hóa đơn - KhuêFood
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span id="authInfo" class="small"></span>
+      <button id="logoutBtn" class="btn btn-sm btn-light">Đăng xuất</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <div id="alertBox"></div>
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0 text-danger">📄 DANH SÁCH HÓA ĐƠN</h2>
+
+    <select id="statusFilter" class="form-select form-select-sm" style="width:180px">
+      <option value="">Tất cả</option>
+      <option value="Chờ xử lý">Chờ xử lý</option>
+      <option value="Đang làm">Đang làm</option>
+      <option value="Hoàn thành">Hoàn thành</option>
+    </select>
+  </div>
+
+  <!-- 🔧 FIX: GIỮ 1 BẢNG DUY NHẤT (XÓA BẢNG TRÙNG) -->
+  <table class="table table-hover align-middle" id="ordersTable">
+    <thead class="table-danger">
+      <tr>
+        <th>ID</th>
+        <th>Khách</th>
+        <th>Thời gian</th>
+        <th>Trạng thái</th>
+        <th class="text-end">Tổng</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<!-- 🔧 FIX: GIỮ 1 MODAL DUY NHẤT (XÓA MODAL TRÙNG) -->
+<div class="modal fade" id="orderDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h5 class="modal-title">Chi tiết đơn <span id="detailIDDH"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <div><strong>Khách:</strong> <span id="detailTenKhach"></span></div>
+        <div><strong>Thời gian:</strong> <span id="detailThoiGian"></span></div>
+
+        <div><strong>Ghi chú:</strong></div>
+        <p id="detailGhiChu" class="text-muted"></p>
+
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <select id="detailTrangThai" class="form-select form-select-sm" style="width:180px">
+            <option>Chờ xử lý</option>
+            <option>Đang làm</option>
+            <option>Hoàn thành</option>
+          </select>
+
+          <button id="btnUpdateStatus" class="btn btn-success btn-sm">
+            Lưu trạng thái
+          </button>
+        </div>
+
+        <div class="detail-items-wrapper">
+          <table class="table table-sm table-bordered">
+            <thead>
+              <tr>
+                <th>Món</th>
+                <th class="text-end">SL</th>
+                <th class="text-end">Đơn giá</th>
+                <th class="text-end">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody id="detailItemsBody"></tbody>
+          </table>
+        </div>
+
+        <div class="text-end mt-2">
+          <strong>Tổng:</strong> <span id="detailTongTien"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="accessDeniedBox" style="display:none;"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+/* =====================
+   AUTH + ROLE (GIỮ NGUYÊN LOGIC CỦA BẠN)
+   ===================== */
+
+function normalizeRole(s) {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "");
+}
+
+function getUser() {
+  return JSON.parse(localStorage.getItem("user") || "null");
+}
+function getToken() {
+  return localStorage.getItem("token");
+}
+function authHeaders() {
+  return { Authorization: `Bearer ${getToken()}` };
+}
+
+// 🔧 FIX: KHÔNG GỌI requireLogin RIÊNG → requireRoles ĐÃ BAO HÀM
+function requireRoles(roles) {
+  if (!getUser() || !getToken()) {
+    window.location.href = "gdlogin.html";
+    return;
+  }
+  if (!roles.map(normalizeRole).includes(normalizeRole(getUser().VaiTro))) {
+    alert("Không có quyền truy cập");
+    window.location.href = "gdtrangchu.html";
+  }
+}
+
+// 🔧 FIX: BỎ "bếp" dư – normalizeRole đã xử lý
+requireRoles(["Quản lý", "Nhân viên", "Bếp"]);
+</script>
+
+<script>
+/* =====================
+   ORDER LOGIC – FIX NULL/UNDEFINED + MAP FIELD
+   ===================== */
+
+const API_ORDERS = "http://localhost:3000/api/order";
+let currentOrderId = null;
+let currentRole = normalizeRole(getUser()?.VaiTro);
+
+// FIX: khai báo element cho chắc
+const alertBoxEl = document.getElementById("alertBox");
+
+function showAlert(msg, type = "success") {
+  if (!alertBoxEl) return;
+  alertBoxEl.innerHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+    ${msg}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>`;
+}
+
+function pick(obj, keys, fallback = null) {
+  for (const k of keys) {
+    if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
+  }
+  return fallback;
+}
+
+function formatMoney(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "0đ";
+  return n.toLocaleString("vi-VN") + "đ";
+}
+
+function formatDate(v) {
+  if (!v) return "";
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleString("vi-VN");
+}
+
+// MAP các field phổ biến (để không bị undefined/Invalid Date)
+function normalizeOrderRow(o) {
+  const id = pick(o, ["IDDonHang", "IDDH", "IDHD", "id", "_id", "MaDon", "MaHD"], "");
+  const tenKhach = pick(o, ["TenKhachHang", "Khach", "customerName", "TenKH"], "");
+  const ngay = pick(o, ["Ngay", "ThoiGian", "createdAt", "NgayTao", "NgayLap", "date"], null);
+  const trangThai = pick(o, ["TrangThai", "status"], "");
+  const tong = pick(o, ["TongTien", "Tong", "total", "ThanhTien"], 0);
+
+  return { id, tenKhach, ngay, trangThai, tong, raw: o };
+}
+
+async function loadOrders() {
+  try {
+    const res = await fetch(API_ORDERS, { headers: authHeaders() });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        showAlert("Bạn chưa đăng nhập hoặc token hết hạn. Vui lòng đăng nhập lại!", "warning");
+        // localStorage.clear();
+        // window.location.href = "gdlogin.html";
+        return;
+      }
+      if (res.status === 403) {
+        showAlert("Bạn không có quyền xem danh sách hóa đơn!", "danger");
+        return;
+      }
+      const text = await res.text().catch(() => "");
+      console.error("Load orders error:", res.status, text);
+      showAlert("Không tải được danh sách hóa đơn!", "danger");
+      return;
+    }
+
+    const data = await res.json();
+    renderOrders(Array.isArray(data) ? data : []);
+  } catch (err) {
+    console.error(err);
+    showAlert("Không tải được danh sách hóa đơn!", "danger");
+  }
+}
+
+function renderOrders(list) {
+  const tbody = document.querySelector("#ordersTable tbody");
+  tbody.innerHTML = "";
+
+  // filter theo dropdown trạng thái
+  const filterVal = (document.getElementById("statusFilter")?.value || "").trim();
+
+  const rows = list
+    .map(normalizeOrderRow)
+    .filter(r => !filterVal || r.trangThai === filterVal);
+
+  if (rows.length === 0) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="5" class="text-center text-muted py-4">Không có hóa đơn phù hợp.</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
+  rows.forEach(r => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${r.id || ""}</td>
+      <td>${r.tenKhach || ""}</td>
+      <td>${formatDate(r.ngay) || ""}</td>
+      <td>${r.trangThai || ""}</td>
+      <td class="text-end">${formatMoney(r.tong)}</td>
+    `;
+    tr.onclick = () => openOrderDetail(r.id, r.raw);
+    tbody.appendChild(tr);
+  });
+}
+
+// Nếu API chi tiết dùng id khác (ví dụ _id) thì truyền cả raw để fallback
+async function openOrderDetail(id, rawRow = null) {
+  currentOrderId = id;
+
+  try {
+    const res = await fetch(`${API_ORDERS}/${id}`, { headers: authHeaders() });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error("Order detail error:", res.status, text);
+      showAlert("Không tải được chi tiết hóa đơn!", "danger");
+      return;
+    }
+
+    const o = await res.json();
+
+    // map chi tiết
+    const detailId = pick(o, ["IDDonHang", "IDDH", "IDHD", "id", "_id"], id);
+    const tenKhach = pick(o, ["TenKhachHang", "Khach", "customerName", "TenKH"], pick(rawRow, ["TenKhachHang", "Khach"], ""));
+    const ngay = pick(o, ["Ngay", "ThoiGian", "createdAt", "NgayTao", "NgayLap"], pick(rawRow, ["Ngay", "ThoiGian", "createdAt"], null));
+    const trangThai = pick(o, ["TrangThai", "status"], pick(rawRow, ["TrangThai", "status"], ""));
+    const tong = pick(o, ["TongTien", "Tong", "total", "ThanhTien"], pick(rawRow, ["TongTien", "Tong", "total"], 0));
+    const ghiChu = pick(o, ["GhiChu", "Note", "GhiChú"], "");
+
+    // items có thể là Items hoặc items hoặc ChiTiet...
+    const items = pick(o, ["Items", "items", "ChiTiet", "orderItems"], []);
+    const safeItems = Array.isArray(items) ? items : [];
+
+    detailIDDH.textContent = "#" + (detailId ?? id ?? "");
+    detailTenKhach.textContent = tenKhach || "";
+    detailThoiGian.textContent = formatDate(ngay) || "";
+    detailGhiChu.textContent = ghiChu || "";
+    detailTrangThai.value = trangThai || "Chờ xử lý";
+    detailTongTien.textContent = formatMoney(tong);
+
+    detailItemsBody.innerHTML = "";
+    safeItems.forEach(i => {
+      const tenMon = pick(i, ["TenMon", "TenMA", "name"], "");
+      const soLuong = Number(pick(i, ["SoLuong", "qty", "Quantity"], 0)) || 0;
+      const donGia = Number(pick(i, ["DonGia", "Gia", "price"], 0)) || 0;
+      const thanhTien = soLuong * donGia;
+
+      detailItemsBody.innerHTML += `
+        <tr>
+          <td>${tenMon}</td>
+          <td class="text-end">${soLuong}</td>
+          <td class="text-end">${formatMoney(donGia).replace("đ","")}</td>
+          <td class="text-end">${formatMoney(thanhTien).replace("đ","")}</td>
+        </tr>`;
+    });
+
+    // UI phân quyền – CHỈ BẾP ĐƯỢC SỬA
+    if (currentRole !== "bep") {
+      btnUpdateStatus.style.display = "none";
+      detailTrangThai.disabled = true;
+    } else {
+      btnUpdateStatus.style.display = "";
+      detailTrangThai.disabled = false;
+    }
+
+    new bootstrap.Modal(orderDetailModal).show();
+  } catch (err) {
+    console.error(err);
+    showAlert("Không tải được chi tiết hóa đơn!", "danger");
+  }
+}
+
+btnUpdateStatus.onclick = async () => {
+  try {
+    const res = await fetch(`${API_ORDERS}/${currentOrderId}/status`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ TrangThai: detailTrangThai.value })
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error("Update status error:", res.status, text);
+      showAlert("Cập nhật thất bại!", "danger");
+      return;
+    }
+
+    showAlert("Cập nhật thành công", "success");
+    loadOrders();
+  } catch (err) {
+    console.error(err);
+    showAlert("Cập nhật thất bại!", "danger");
+  }
+};
+
+logoutBtn.onclick = () => {
+  localStorage.clear();
+  window.location.href = "gdlogin.html";
+};
+
+// Filter change
+document.getElementById("statusFilter")?.addEventListener("change", () => loadOrders());
+
+loadOrders();
+</script>
+
+
+</body>
+</html>
