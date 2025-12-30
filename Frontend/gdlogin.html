@@ -56,49 +56,59 @@
     </form>
   </div>
 
-  <script>
-    const API_URL = "http://localhost:4000/auth/login";
+<script>
+  const API_URL = "http://localhost:3000/auth/login";
 
-    // hoặc "http://localhost:4000/auth/login" tùy  mount route trong server.js, 
-    //ktra phan quyen login nho /auth la folder auth-service
+  const form = document.getElementById("loginForm");
+  const msg = document.getElementById("message");
 
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-    document.getElementById("loginForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value.trim();
+    const btn = form.querySelector('button[type="submit"]');
 
-      const username = document.getElementById("username").value.trim();
-      const password = document.getElementById("password").value.trim();
-      const msg = document.getElementById("message");
+    msg.innerHTML = "";
+    btn.disabled = true;
+    btn.textContent = "Đang đăng nhập...";
 
-      try {
-        const response = await fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, password })
-        });
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
 
-        const data = await response.json();
+      const raw = await res.text();     // đọc text trước cho chắc
+      let data = {};
+      try { data = JSON.parse(raw); } catch { data = { message: raw }; }
 
-        if (response.ok) {
-          msg.innerHTML = `<span style="color:green">${data.message}</span>`;
-          localStorage.setItem("user", JSON.stringify(data.user));
-          //key trong storage luu ttin
-          localStorage.setItem("token", data.token); // thêm dòng này
-          //vi luu ttin token de cac service khac reuire auth ph quyen nua
+      console.log("LOGIN RESPONSE:", res.status, data);
 
-          // Chuyển trang sau khi đăng nhập thành công
-          setTimeout(() => {
-            window.location.href = "gdtrangchu.html";
-          }, 1500);
-        } else {
-          msg.innerHTML = `<span style="color:red">${data.message || "Đăng nhập thất bại!"}</span>`;
-        }
-      } catch (err) {
-        console.error("Lỗi:", err);
-        msg.innerHTML = `<span style="color:red">Không thể kết nối đến server!</span>`;
+      if (res.ok) {
+        msg.innerHTML = `<span style="color:green">${data.message || "✅ Đăng nhập thành công!"}</span>`;
+        localStorage.setItem("user", JSON.stringify(data.user || {}));
+        localStorage.setItem("token", data.token || "");
+
+        setTimeout(() => {
+          window.location.href = "gdtrangchu.html";
+        }, 600);
+      } else {
+        msg.innerHTML = `<span style="color:red">${data.message || "❌ Đăng nhập thất bại!"}</span>`;
       }
-    });
-  </script>
+    } catch (err) {
+      console.error("LOGIN ERROR:", err);
+      msg.innerHTML = `<span style="color:red">❌ Không thể kết nối đến server!</span>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Đăng nhập";
+    }
+  });
+</script>
+
+
+
 </body>
 
 </html>

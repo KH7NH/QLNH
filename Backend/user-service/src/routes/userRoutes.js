@@ -1,40 +1,30 @@
+// src/routes/userRoutes.js
 const express = require('express');
 const router = express.Router();
+
 const userController = require('../controller/userController');
 const authMiddleware = require('../middleware/authMiddleware');
 const authorizeRoles = require('../middleware/roleMiddleware');
 
-
-// ===== Các route KHÔNG yêu cầu đăng nhập (nếu  còn dùng) =====
+// ===== Public routes (KHÔNG cần token) =====
 router.post('/login', userController.loginUser);
-// nếu muốn logout phải có token thì có thể thêm authMiddleware:
-router.post('/logout', authMiddleware, userController.logoutUser);
 
 // ===== Từ đây trở xuống: yêu cầu đã đăng nhập =====
 router.use(authMiddleware);
 
-// Lấy danh sách nhân viên – chỉ admin
-router.get('/nhanvien', authorizeRoles('admin'), userController.getAllNhanVien);
-
-
-// Lấy danh sách
-router.get('/nhanvien', userController.getAllNhanVien);
-
-// Thêm
-router.post('/nhanvien', userController.createNhanVien);
-
-// Sửa
-router.put('/nhanvien/:id', userController.updateNhanVien);
-
-// Xóa
-router.delete('/nhanvien/:id', userController.deleteNhanVien);
-
-// Login / Logout
-router.post('/login', userController.loginUser);
+// Logout (JWT logout client-side là chính)
 router.post('/logout', userController.logoutUser);
 
-router.get("/", (req, res) => {
-  res.send("✅ User route đang hoạt động!");
+// ✅ Nhân viên: chỉ "Quản lý" (và/hoặc Admin nếu bạn muốn)
+router.get('/nhanvien', authorizeRoles('Quản lý'), userController.getAllNhanVien);
+
+// Thêm/Sửa/Xóa nhân viên: cũng nên giới hạn role
+router.post('/nhanvien', authorizeRoles('Quản lý'), userController.createNhanVien);
+router.put('/nhanvien/:id', authorizeRoles('Quản lý'), userController.updateNhanVien);
+router.delete('/nhanvien/:id', authorizeRoles('Quản lý'), userController.deleteNhanVien);
+
+router.get('/', (req, res) => {
+  res.send('✅ User route đang hoạt động!');
 });
 
 module.exports = router;
