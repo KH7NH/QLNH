@@ -12,7 +12,7 @@
 
 <body class="py-4">
 
-  <!-- 🔴 THANH TRÊN: TÊN TRANG + ĐĂNG XUẤT -->
+  <!-- 🔴 THANH TRÊN -->
   <div class="bg-danger text-white">
     <div class="container d-flex justify-content-between align-items-center py-1">
       <strong>Quản lý nhân viên - KhuêFood</strong>
@@ -21,22 +21,16 @@
   </div>
 
   <div class="container py-4">
-
-    <!-- 🔔 Thông báo -->
     <div id="alertBox"></div>
-
-    <!-- 🚫 Thông báo không đủ quyền -->
     <div id="accessDeniedBox" style="display:none; margin-bottom:12px;"></div>
 
-    <!-- Header + nút thêm -->
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h2 class="mb-0">📋 Danh sách nhân viên</h2>
-      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNhanVien">
+      <button id="btnOpenCreate" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNhanVien">
         ➕ Thêm nhân viên
       </button>
     </div>
 
-    <!-- Bảng nhân viên -->
     <div class="card shadow-sm">
       <div class="card-body">
         <table class="table table-hover mb-0" id="tblNhanVien">
@@ -48,14 +42,13 @@
               <th>Username</th>
               <th>Vai trò</th>
               <th>Password</th>
-              <th>Hành động</th>
+              <th style="width:120px;">Hành động</th>
             </tr>
           </thead>
           <tbody></tbody>
         </table>
       </div>
     </div>
-
   </div>
 
   <!-- MODAL THÊM / SỬA -->
@@ -94,20 +87,22 @@
             <div class="mb-3">
               <label class="form-label">Password *</label>
               <input type="password" class="form-control" id="PasswordHash" required>
-              <div class="form-text text-muted">* Mình sẽ không hiển thị password thật trên bảng.</div>
+              <div class="form-text" id="pwHelp">
+                Không nên để trống khi thêm mới. Khi sửa: để trống nếu muốn giữ password cũ.
+              </div>
             </div>
           </div>
 
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-            <button type="submit" class="btn btn-success">Lưu</button>
+            <button id="btnSave" type="submit" class="btn btn-success">Lưu</button>
           </div>
         </form>
       </div>
     </div>
   </div>
 
-  <!-- ================= AUTH + ROLE GUARD ================= -->
+  <!-- AUTH + HELPERS -->
   <script>
     function normalizeRole(s) {
       return (s || "")
@@ -129,10 +124,7 @@
     function showAccessDenied(msg) {
       const box = document.getElementById("accessDeniedBox");
       box.style.display = "block";
-      box.innerHTML = `
-        <div class="alert alert-danger mb-0">
-          ⛔ ${msg}
-        </div>`;
+      box.innerHTML = `<div class="alert alert-danger mb-0">⛔ ${msg}</div>`;
     }
 
     function requireRoles(roles) {
@@ -151,7 +143,6 @@
         setTimeout(() => location.href = "gdtrangchu.html", 800);
         return false;
       }
-
       return true;
     }
 
@@ -188,27 +179,51 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-  <!-- ================= MAIN SCRIPT ================= -->
+  <!-- MAIN CRUD -->
   <script>
     const API = "http://localhost:3000/api/users/nhanvien";
 
-    async function loadNhanVien() {
-      const tbody = document.querySelector("#tblNhanVien tbody");
-      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Đang tải...</td></tr>`;
+    const modalEl = document.getElementById("modalNhanVien");
+    const modal = new bootstrap.Modal(modalEl);
 
+    const form = document.getElementById("nhanVienForm");
+    const modalTitle = document.getElementById("modalTitle");
+    const btnSave = document.getElementById("btnSave");
+
+    const fIDNV = document.getElementById("IDNV");
+    const fTenNV = document.getElementById("TenNV");
+    const fVaiTro = document.getElementById("VaiTro");
+    const fUsername = document.getElementById("Username");
+    const fPassword = document.getElementById("PasswordHash");
+    const pwHelp = document.getElementById("pwHelp");
+
+    let cacheNhanVien = []; // dùng để fill khi edit
+
+    function setLoadingTable(msg = "Đang tải...") {
+      document.querySelector("#tblNhanVien tbody").innerHTML =
+        `<tr><td colspan="7" class="text-center text-muted">${escapeHtml(msg)}</td></tr>`;
+    }
+
+    async function safeJson(res) {
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")) return await res.json();
+      return await res.text();
+    }
+
+    async function loadNhanVien() {
+      setLoadingTable("Đang tải...");
       let res;
+
       try {
         res = await fetch(API, { headers: authHeaders() });
-      } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Không kết nối được server</td></tr>`;
+      } catch {
+        setLoadingTable("Không kết nối được server");
         showAlert("Không thể kết nối đến server!", "danger");
         return;
       }
 
-      const contentType = res.headers.get("content-type") || "";
-      const payload = contentType.includes("application/json") ? await res.json() : await res.text();
+      const payload = await safeJson(res);
 
-      // ✅ xử lý lỗi auth
       if (res.status === 401) {
         showAlert("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.", "warning");
         setTimeout(logout, 800);
@@ -217,33 +232,40 @@
       if (res.status === 403) {
         const msg = (typeof payload === "string") ? payload : (payload.message || "Không đủ quyền truy cập");
         showAccessDenied(msg);
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">⛔ ${escapeHtml(msg)}</td></tr>`;
+        setLoadingTable("⛔ " + msg);
         return;
       }
-
       if (!res.ok) {
         const msg = (typeof payload === "string") ? payload : (payload.message || "Không tải được nhân viên");
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">${escapeHtml(msg)}</td></tr>`;
+        setLoadingTable(msg);
         showAlert(msg, "danger");
         return;
       }
 
-      const data = payload; // mảng nhân viên
-      if (!Array.isArray(data) || data.length === 0) {
+      const data = payload;
+      cacheNhanVien = Array.isArray(data) ? data : [];
+
+      renderTable(cacheNhanVien);
+    }
+
+    function renderTable(list) {
+      const tbody = document.querySelector("#tblNhanVien tbody");
+
+      if (!list.length) {
         tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Chưa có nhân viên</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = data.map((nv, idx) => `
+      tbody.innerHTML = list.map((nv, idx) => `
         <tr>
           <td>${idx + 1}</td>
           <td>${escapeHtml(nv.IDNV)}</td>
           <td>${escapeHtml(nv.TenNV)}</td>
           <td>${escapeHtml(nv.Username)}</td>
           <td>${escapeHtml(nv.VaiTro)}</td>
-          <td class="text-muted">******</td>
+          <td>${escapeHtml(nv.PasswordHash)}</td>
           <td>
-            <button class="btn btn-sm btn-warning me-1" onclick="editNhanVien(${nv.IDNV})" title="Sửa">
+            <button class="btn btn-sm btn-warning me-1" onclick="openEdit(${nv.IDNV})" title="Sửa">
               <i class="bi bi-pencil-square"></i>
             </button>
             <button class="btn btn-sm btn-danger" onclick="deleteNhanVien(${nv.IDNV})" title="Xóa">
@@ -254,22 +276,158 @@
       `).join("");
     }
 
-    // ✅ placeholder để không lỗi khi bấm
-    function editNhanVien(id) {
-      showAlert(`Bạn bấm Sửa IDNV: ${id} (chưa viết logic)`, "info");
-    }
-    function deleteNhanVien(id) {
-      showAlert(`Bạn bấm Xóa IDNV: ${id} (chưa viết logic)`, "info");
+    // ===== OPEN CREATE =====
+    function openCreate() {
+      modalTitle.textContent = "Thêm nhân viên";
+      btnSave.textContent = "Lưu";
+
+      fIDNV.value = "";
+      fTenNV.value = "";
+      fVaiTro.value = "";
+      fUsername.value = "";
+      fPassword.value = "";
+      fPassword.required = true;
+      pwHelp.classList.remove("text-muted");
+      pwHelp.innerHTML = "Khi thêm: bắt buộc nhập password.";
+
+      modal.show();
     }
 
+    // ===== OPEN EDIT =====
+    window.openEdit = function (id) {
+      const nv = cacheNhanVien.find(x => String(x.IDNV) === String(id));
+      if (!nv) {
+        showAlert("Không tìm thấy nhân viên để sửa", "danger");
+        return;
+      }
+
+      modalTitle.textContent = "Sửa nhân viên";
+      btnSave.textContent = "Cập nhật";
+
+      fIDNV.value = nv.IDNV;
+      fTenNV.value = nv.TenNV || "";
+      fVaiTro.value = nv.VaiTro || "";
+      fUsername.value = nv.Username || "";
+
+      // Khi sửa: cho phép trống (để giữ password)
+      fPassword.value = "";
+      fPassword.required = false;
+      pwHelp.classList.add("text-muted");
+
+      modal.show();
+    }
+
+    // ===== SUBMIT CREATE/UPDATE =====
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const id = fIDNV.value.trim();
+      const payload = {
+        TenNV: fTenNV.value.trim(),
+        VaiTro: fVaiTro.value,
+        Username: fUsername.value.trim(),
+        PasswordHash: fPassword.value // có thể "" khi sửa (tuỳ backend)
+      };
+
+      // validate basic
+      if (!payload.TenNV || !payload.VaiTro || !payload.Username) {
+        showAlert("Vui lòng nhập đầy đủ TenNV, VaiTro, Username", "danger");
+        return;
+      }
+      if (!id && !payload.PasswordHash) {
+        showAlert("Khi thêm mới: Password là bắt buộc", "danger");
+        return;
+      }
+
+      // Nếu đang sửa và password trống: KHÔNG gửi PasswordHash (để giữ nguyên)
+      // (Backend hiện tại của bạn update luôn PasswordHash => gửi trống sẽ set trống)
+      if (id && !payload.PasswordHash) {
+        delete payload.PasswordHash;
+      }
+
+      btnSave.disabled = true;
+      btnSave.textContent = "Đang lưu...";
+
+      try {
+        const url = id ? `${API}/${encodeURIComponent(id)}` : API;
+        const method = id ? "PUT" : "POST";
+
+        const res = await fetch(url, {
+          method,
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        const data = await safeJson(res);
+
+        if (res.status === 401) {
+          showAlert("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.", "warning");
+          setTimeout(logout, 800);
+          return;
+        }
+        if (!res.ok) {
+          const msg = (typeof data === "string") ? data : (data.message || "Thao tác thất bại");
+          showAlert(msg, "danger");
+          return;
+        }
+
+        showAlert(id ? "✅ Cập nhật nhân viên thành công!" : "✅ Thêm nhân viên thành công!", "success");
+        modal.hide();
+        await loadNhanVien();
+
+      } catch (err) {
+        console.error(err);
+        showAlert("Không thể kết nối server khi lưu!", "danger");
+      } finally {
+        btnSave.disabled = false;
+        btnSave.textContent = id ? "Cập nhật" : "Lưu";
+      }
+    });
+
+    // ===== DELETE =====
+    window.deleteNhanVien = async function (id) {
+      const nv = cacheNhanVien.find(x => String(x.IDNV) === String(id));
+      const name = nv ? `${nv.TenNV} (${nv.Username})` : `IDNV ${id}`;
+
+      if (!confirm(`Bạn chắc chắn muốn xóa: ${name} ?`)) return;
+
+      try {
+        const res = await fetch(`${API}/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          headers: authHeaders()
+        });
+
+        const data = await safeJson(res);
+
+        if (res.status === 401) {
+          showAlert("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.", "warning");
+          setTimeout(logout, 800);
+          return;
+        }
+
+        if (!res.ok) {
+          const msg = (typeof data === "string") ? data : (data.message || "Xóa thất bại");
+          showAlert(msg, "danger");
+          return;
+        }
+
+        showAlert("✅ Xóa nhân viên thành công!", "success");
+        await loadNhanVien();
+      } catch (err) {
+        console.error(err);
+        showAlert("Không thể kết nối server khi xóa!", "danger");
+      }
+    }
+
+    // ===== INIT =====
     document.getElementById("logoutBtnTop").addEventListener("click", logout);
+    document.getElementById("btnOpenCreate").addEventListener("click", openCreate);
 
     document.addEventListener("DOMContentLoaded", () => {
-      if (requireRoles(["Quản lý"])) {
-        loadNhanVien();
-      }
+      if (requireRoles(["Quản lý"])) loadNhanVien();
     });
   </script>
 
 </body>
+
 </html>

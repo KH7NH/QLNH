@@ -1,185 +1,416 @@
 <!DOCTYPE html>
 <html lang="vi">
-
 <head>
-    <meta charset="UTF-8" />
-    <!-- 🔧 FIX: Đổi title từ "Thực đơn món ăn" → "Danh sách món ăn" -->
-    <title>Danh sách món ăn</title>
-
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <meta charset="UTF-8" />
+  <title>Danh sách món ăn</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    .card-img-top { height: 170px; object-fit: cover; }
+    .price { font-weight: 800; }
+    .badge { border-radius: 999px; }
+  </style>
 </head>
 
 <body class="bg-light">
+  <!-- HEADER -->
+  <div class="bg-danger text-white">
+    <div class="container d-flex justify-content-between align-items-center py-2">
+      <div><b>KhuêFood</b> • Quản lý món ăn</div>
+      <div class="d-flex align-items-center gap-2">
+        <span id="authInfo" class="small"></span>
+        <button id="logoutBtn" class="btn btn-sm btn-light">Đăng xuất</button>
+      </div>
+    </div>
+  </div>
 
-    <!-- =========================
-         TIÊU ĐỀ + NÚT THÊM
-    ========================== -->
-    <div class="container py-4">
+  <div class="container py-4">
+    <div id="alertBox"></div>
+    <div id="accessDeniedBox" style="display:none; margin-bottom:12px;"></div>
 
-        <!-- Thông báo -->
-        <div id="alertBox"></div>
-
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <!-- 🔧 FIX: Đổi tên đúng nghiệp vụ -->
-            <h2 class="mb-0 text-danger">
-                🔥 DANH SÁCH MÓN ĂN
-            </h2>
-
-            <!-- 🔧 FIX: class btn成功 là lỗi gõ -->
-            <button class="btn btn-success"
-                data-bs-toggle="modal"
-                data-bs-target="#modalMonAn"
-                onclick="openAddModal()">
-                ➕ Thêm món ăn
-            </button>
-        </div>
-
-        <!-- Tìm kiếm -->
-        <div class="mb-4">
-            <input type="text"
-                   id="searchInput"
-                   class="form-control w-50"
-                   placeholder="🔍 Tìm kiếm món ăn theo tên...">
-        </div>
-
-        <!-- Danh sách món -->
-        <div class="row g-4" id="monAnContainer">
-            <!-- JS render card món ăn -->
-        </div>
-
-        <!-- Phân trang -->
-        <div class="d-flex justify-content-center mt-4">
-            <ul class="pagination" id="pagination"></ul>
-        </div>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="mb-0 text-danger">🔥 DANH SÁCH MÓN ĂN</h2>
+      <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalMonAn" id="btnOpenAdd">
+        ➕ Thêm món ăn
+      </button>
     </div>
 
-    <!-- =========================
-         MODAL THÊM / SỬA MÓN ĂN
-    ========================== -->
-    <div class="modal fade" id="modalMonAn" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <form id="monAnForm">
+    <div class="d-flex gap-2 mb-4">
+      <input type="text" id="searchInput" class="form-control" placeholder="🔍 Tìm theo tên món..." />
+      <select id="statusFilter" class="form-select" style="max-width:180px">
+        <option value="">Tất cả</option>
+        <option value="Còn hàng">Còn hàng</option>
+        <option value="Hết hàng">Hết hàng</option>
+      </select>
+    </div>
 
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="modalTitle">Thêm món ăn</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
+    <div class="row g-4" id="monAnContainer"></div>
 
-                    <div class="modal-body">
-                        <input type="hidden" id="IDMA" />
+    <div class="d-flex justify-content-center mt-4">
+      <ul class="pagination" id="pagination"></ul>
+    </div>
+  </div>
 
-                        <div class="row g-3">
-                            <div class="col-md-12">
-                                <label class="form-label">Tên món ăn *</label>
-                                <input type="text" class="form-control" id="TenMA" required />
-                            </div>
+  <!-- MODAL -->
+  <div class="modal fade" id="modalMonAn" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <form id="monAnForm">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalTitle">Thêm món ăn</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
 
-                            <div class="col-md-4">
-                                <label class="form-label">Giá (VNĐ) *</label>
-                                <input type="number" class="form-control" id="Gia" min="0" required />
-                            </div>
+          <div class="modal-body">
+            <input type="hidden" id="IDMA" />
 
-                            <div class="col-md-4">
-                                <label class="form-label">Trạng thái *</label>
-                                <select class="form-control" id="TrangThai" required>
-                                    <option value="">-- Chọn trạng thái --</option>
-                                    <option value="Còn hàng">Còn hàng</option>
-                                    <option value="Hết hàng">Hết hàng</option>
-                                </select>
-                            </div>
+            <div class="row g-3">
+              <div class="col-md-12">
+                <label class="form-label">Tên món ăn *</label>
+                <input type="text" class="form-control" id="TenMA" required />
+              </div>
 
-                            <div class="col-md-12">
-                                <label class="form-label">Mô tả *</label>
-                                <textarea class="form-control" id="MoTa" rows="2" required></textarea>
-                            </div>
+              <div class="col-md-4">
+                <label class="form-label">Giá (VNĐ) *</label>
+                <input type="number" class="form-control" id="Gia" min="0" required />
+              </div>
 
-                            <div class="col-md-12">
-                                <label class="form-label">Link ảnh *</label>
-                                <input type="text" class="form-control" id="AnhMon" required />
-                            </div>
-                        </div>
-                    </div>
+              <div class="col-md-4">
+                <label class="form-label">Trạng thái *</label>
+                <select class="form-select" id="TrangThai" required>
+                  <option value="">-- Chọn trạng thái --</option>
+                  <option value="Còn hàng">Còn hàng</option>
+                  <option value="Hết hàng">Hết hàng</option>
+                </select>
+              </div>
 
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                        <button type="submit" class="btn btn-primary">Lưu</button>
-                    </div>
+              <div class="col-md-12">
+                <label class="form-label">Mô tả *</label>
+                <textarea class="form-control" id="MoTa" rows="2" required></textarea>
+              </div>
 
-                </form>
+              <div class="col-md-12">
+                <label class="form-label">Link ảnh *</label>
+                <input type="text" class="form-control" id="AnhMon" required />
+                <div class="form-text">Ví dụ: https://.../image.jpg</div>
+              </div>
             </div>
-        </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+            <button type="submit" class="btn btn-primary">Lưu</button>
+          </div>
+        </form>
+      </div>
     </div>
+  </div>
 
-    <!-- =========================
-         PHÂN QUYỀN FRONTEND
-    ========================== -->
-    <div id="accessDeniedBox" style="display:none; margin:12px;"></div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-    <script>
-        // ===== AUTH + ROLE =====
-        function normalizeRole(s) {
-            return (s || "")
-                .toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .replace(/\s+/g, "");
+  <script>
+    /* ========= AUTH / ROLE ========= */
+    function normalizeRole(s) {
+      return (s || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, "");
+    }
+
+    function getUser() {
+      try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
+    }
+    function getToken() { return localStorage.getItem("token"); }
+
+    function showAccessDenied(msg) {
+      const box = document.getElementById("accessDeniedBox");
+      box.style.display = "block";
+      box.innerHTML = `<div class="alert alert-danger mb-0">⛔ ${msg}</div>`;
+    }
+
+    function requireRoles(roles) {
+      const user = getUser();
+      const token = getToken();
+      if (!user || !token) {
+        showAccessDenied("Bạn cần đăng nhập.");
+        setTimeout(() => location.href = "gdlogin.html", 600);
+        return false;
+      }
+      const role = normalizeRole(user.VaiTro);
+      if (!roles.map(normalizeRole).includes(role)) {
+        showAccessDenied("Trang này chỉ dành cho <b>Quản lý</b>.");
+        setTimeout(() => location.href = "gdtrangchu.html", 800);
+        return false;
+      }
+      return true;
+    }
+
+    function authHeaders(extra = {}) {
+      return { Authorization: `Bearer ${getToken()}`, ...extra };
+    }
+
+    /* ========= UI helpers ========= */
+    function showAlert(msg, type="success") {
+      document.getElementById("alertBox").innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          ${msg}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>`;
+    }
+
+    function formatMoney(v) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return "0đ";
+      return n.toLocaleString("vi-VN") + "đ";
+    }
+
+    /* ========= API ========= */
+    const API = "http://localhost:3000/api/monan"; // ✅ đúng theo gateway rewrite
+    const PAGE_SIZE = 8;
+
+    let allItems = [];
+    let filteredItems = [];
+    let currentPage = 1;
+
+    const monAnContainer = document.getElementById("monAnContainer");
+    const pagination = document.getElementById("pagination");
+    const searchInput = document.getElementById("searchInput");
+    const statusFilter = document.getElementById("statusFilter");
+
+    async function loadMonAn() {
+      try {
+        const res = await fetch(API, { headers: authHeaders() });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          console.error("LoadMonAn error:", res.status, text);
+
+          if (res.status === 401) showAlert("Token hết hạn / chưa đăng nhập. Vui lòng đăng nhập lại!", "warning");
+          else if (res.status === 403) showAlert("Bạn không có quyền truy cập!", "danger");
+          else showAlert("Không tải được danh sách món ăn!", "danger");
+          return;
         }
 
-        function getUser() {
-            try { return JSON.parse(localStorage.getItem("user")); }
-            catch { return null; }
+        const data = await res.json();
+        allItems = Array.isArray(data) ? data : [];
+        applyFilterAndRender();
+      } catch (err) {
+        console.error(err);
+        showAlert("Không tải được danh sách món ăn!", "danger");
+      }
+    }
+
+    function applyFilterAndRender() {
+      const q = (searchInput.value || "").trim().toLowerCase();
+      const st = (statusFilter.value || "").trim();
+
+      filteredItems = allItems.filter(x => {
+        const name = (x.TenMA || "").toLowerCase();
+        const okName = !q || name.includes(q);
+        const okStatus = !st || x.TrangThai === st;
+        return okName && okStatus;
+      });
+
+      currentPage = 1;
+      renderPage();
+    }
+
+    function renderPage() {
+      monAnContainer.innerHTML = "";
+
+      const total = filteredItems.length;
+      if (total === 0) {
+        monAnContainer.innerHTML = `<div class="text-muted">Không có món ăn phù hợp.</div>`;
+        pagination.innerHTML = "";
+        return;
+      }
+
+      const start = (currentPage - 1) * PAGE_SIZE;
+      const pageItems = filteredItems.slice(start, start + PAGE_SIZE);
+
+      pageItems.forEach(item => {
+        const statusBadge = item.TrangThai === "Còn hàng"
+          ? `<span class="badge text-bg-success">Còn hàng</span>`
+          : `<span class="badge text-bg-secondary">Hết hàng</span>`;
+
+        const col = document.createElement("div");
+        col.className = "col-12 col-sm-6 col-lg-3";
+        col.innerHTML = `
+          <div class="card h-100 shadow-sm">
+            <img class="card-img-top" src="${item.AnhMon || ""}" alt="${item.TenMA || ""}"
+                 onerror="this.src='https://via.placeholder.com/600x400?text=No+Image'">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                <h6 class="mb-1">${item.TenMA || ""}</h6>
+                ${statusBadge}
+              </div>
+              <div class="text-danger price mb-2">${formatMoney(item.Gia)}</div>
+              <p class="text-muted small mb-3" style="min-height:38px">${item.MoTa || ""}</p>
+
+              <div class="mt-auto d-flex gap-2">
+                <button class="btn btn-outline-primary btn-sm w-50" onclick="openEditModal(${item.IDMA})">
+                  Sửa
+                </button>
+                <button class="btn btn-outline-danger btn-sm w-50" onclick="deleteMonAn(${item.IDMA})">
+                  Xóa
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        monAnContainer.appendChild(col);
+      });
+
+      renderPagination(total);
+    }
+
+    function renderPagination(totalItems) {
+      const totalPages = Math.ceil(totalItems / PAGE_SIZE);
+      pagination.innerHTML = "";
+
+      const addPage = (label, page, disabled=false, active=false) => {
+        const li = document.createElement("li");
+        li.className = `page-item ${disabled ? "disabled" : ""} ${active ? "active" : ""}`;
+        li.innerHTML = `<a class="page-link" href="javascript:void(0)">${label}</a>`;
+        li.onclick = () => {
+          if (disabled) return;
+          currentPage = page;
+          renderPage();
+        };
+        pagination.appendChild(li);
+      };
+
+      addPage("«", Math.max(1, currentPage - 1), currentPage === 1);
+
+      for (let p = 1; p <= totalPages; p++) {
+        addPage(p, p, false, p === currentPage);
+      }
+
+      addPage("»", Math.min(totalPages, currentPage + 1), currentPage === totalPages);
+    }
+
+    /* ========= CRUD ========= */
+    const modalEl = document.getElementById("modalMonAn");
+    const modal = new bootstrap.Modal(modalEl);
+
+    const monAnForm = document.getElementById("monAnForm");
+    const modalTitle = document.getElementById("modalTitle");
+
+    const IDMA = document.getElementById("IDMA");
+    const TenMA = document.getElementById("TenMA");
+    const Gia = document.getElementById("Gia");
+    const TrangThai = document.getElementById("TrangThai");
+    const MoTa = document.getElementById("MoTa");
+    const AnhMon = document.getElementById("AnhMon");
+
+    document.getElementById("btnOpenAdd").addEventListener("click", openAddModal);
+
+    function openAddModal() {
+      modalTitle.textContent = "Thêm món ăn";
+      IDMA.value = "";
+      TenMA.value = "";
+      Gia.value = "";
+      TrangThai.value = "";
+      MoTa.value = "";
+      AnhMon.value = "";
+    }
+
+    window.openEditModal = function(id) {
+      const item = allItems.find(x => Number(x.IDMA) === Number(id));
+      if (!item) return;
+
+      modalTitle.textContent = "Sửa món ăn";
+      IDMA.value = item.IDMA;
+      TenMA.value = item.TenMA || "";
+      Gia.value = item.Gia ?? 0;
+      TrangThai.value = item.TrangThai || "";
+      MoTa.value = item.MoTa || "";
+      AnhMon.value = item.AnhMon || "";
+      modal.show();
+    }
+
+    monAnForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const payload = {
+        TenMA: TenMA.value.trim(),
+        Gia: Number(Gia.value),
+        TrangThai: TrangThai.value,
+        MoTa: MoTa.value.trim(),
+        AnhMon: AnhMon.value.trim()
+      };
+
+      const id = IDMA.value ? Number(IDMA.value) : null;
+      const url = id ? `${API}/${id}` : API;
+      const method = id ? "PUT" : "POST";
+
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: authHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          showAlert(data.message || "Thao tác thất bại!", "danger");
+          return;
         }
 
-        function getToken() {
-            return localStorage.getItem("token");
+        showAlert(data.message || (id ? "✅ Cập nhật thành công!" : "✅ Thêm thành công!"), "success");
+        modal.hide();
+        await loadMonAn();
+      } catch (err) {
+        console.error(err);
+        showAlert("Thao tác thất bại!", "danger");
+      }
+    });
+
+    window.deleteMonAn = async function(id) {
+      if (!confirm("Bạn chắc chắn muốn xóa món ăn này?")) return;
+
+      try {
+        const res = await fetch(`${API}/${id}`, {
+          method: "DELETE",
+          headers: authHeaders()
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showAlert(data.message || "Xóa thất bại!", "danger");
+          return;
         }
 
-        function requireRoles(roles) {
-            const user = getUser();
-            const role = normalizeRole(user?.VaiTro);
+        showAlert(data.message || "✅ Xóa thành công!", "success");
+        await loadMonAn();
+      } catch (err) {
+        console.error(err);
+        showAlert("Xóa thất bại!", "danger");
+      }
+    };
 
-            // 🔧 FIX: Trang này CHỈ dành cho Quản lý
-            if (!user || !roles.map(normalizeRole).includes(role)) {
-                document.getElementById("accessDeniedBox").style.display = "block";
-                document.getElementById("accessDeniedBox").innerHTML =
-                    `<div class="alert alert-danger">
-                        ⛔ Trang <b>Danh sách món ăn</b> chỉ dành cho <b>Quản lý</b>
-                     </div>`;
-                setTimeout(() => location.href = "gdtrangchu.html", 1000);
-                return false;
-            }
-            return true;
-        }
+    /* ========= EVENTS ========= */
+    searchInput.addEventListener("input", () => applyFilterAndRender());
+    statusFilter.addEventListener("change", () => applyFilterAndRender());
 
-        requireRoles(["Quản lý"]);
-    </script>
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
+      location.href = "gdlogin.html";
+    });
 
-    <!-- =========================
-         API MÓN ĂN (GATEWAY)
-    ========================== -->
-    <script>
-        // 🔧 FIX: Đây là entity "món ăn", KHÔNG phải "thực đơn"
-        const API = "http://localhost:3000/api/monan/monan";
+    /* ========= INIT ========= */
+    (function init() {
+      if (!requireRoles(["Quản lý"])) return;
 
-        async function loadMonAn() {
-            try {
-                const res = await fetch(API, {
-                    headers: { Authorization: `Bearer ${getToken()}` }
-                });
-                const data = await res.json();
+      const user = getUser();
+      document.getElementById("authInfo").textContent =
+        user ? `${user.TenNV || user.Username || ""} • ${user.VaiTro || ""}` : "";
 
-                // TODO: render card (giữ logic cũ của bạn)
-            } catch (err) {
-                document.getElementById("alertBox").innerHTML =
-                    `<div class="alert alert-danger">Không tải được danh sách món ăn</div>`;
-            }
-        }
-
-        loadMonAn();
-    </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+      loadMonAn();
+    })();
+  </script>
 </body>
-
 </html>

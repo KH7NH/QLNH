@@ -1,30 +1,24 @@
 // routes/orderRoutes.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const orderController = require('../controller/orderController');
-const authMiddleware = require('../middleware/authMiddleware');
-const authorizeRoles = require('../middleware/roleMiddleware');
 
+const orderController = require("../controller/orderController");
+const authMiddleware = require("../middleware/authMiddleware");
+const authorizeRoles = require("../middleware/roleMiddleware");
 
-// Tất cả route bên dưới đều yêu cầu đăng nhập
+// tất cả route đều yêu cầu đăng nhập
 router.use(authMiddleware);
 
-// Chỉ admin mới được xem toàn bộ đơn
-router.get('/orders', authorizeRoles('admin'), orderController.getAllOrders);
+// ✅ Danh sách hóa đơn: Quản lý + Bếp (tuỳ bạn, có thể thêm Nhân viên nếu cần)
+router.get("/", authorizeRoles("Quản lý", "Bếp"), orderController.getAllOrders);
 
-// Nhân viên + admin đều có thể tạo đơn
-router.post('/orders', authorizeRoles('admin', 'staff'), orderController.createOrder);
+// ✅ Chi tiết hóa đơn
+router.get("/:id", authorizeRoles("Quản lý", "Bếp"), orderController.getOrderById);
 
-// ĐẶT HÀNG (đã có sẵn từ trước)
-router.post('/create', orderController.createOrder);
+// ✅ Cập nhật trạng thái: CHỈ Bếp (hoặc thêm Quản lý nếu bạn muốn)
+router.put("/:id/status", authorizeRoles("Bếp", "Quản lý"), orderController.updateOrderStatus);
 
-// 🆕 LẤY DANH SÁCH HÓA ĐƠN
-router.get('/', orderController.getAllOrders);
-
-// 🆕 LẤY CHI TIẾT 1 HÓA ĐƠN
-router.get('/:id', orderController.getOrderById);
-
-// 🆕 CẬP NHẬT TRẠNG THÁI
-router.put('/:id/status', orderController.updateOrderStatus);
+// (tuỳ hệ thống) tạo đơn hàng: Nhân viên + Quản lý
+router.post("/", authorizeRoles("Nhân viên", "Quản lý"), orderController.createOrder);
 
 module.exports = router;

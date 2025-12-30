@@ -1,9 +1,20 @@
-// src/middleware/roleMiddleware.js
+// middleware/roleMiddleware.js
+function normalizeRole(s) {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "");
+}
+
 function authorizeRoles(...roles) {
+  const allowed = roles.map(normalizeRole);
+
   return (req, res, next) => {
-    // VaiTro là cột thật trong bảng NhanVien
-    if (!req.user || !roles.includes(req.user.VaiTro)) {
-      return res.status(403).json({ message: 'Không đủ quyền truy cập' });
+    const userRole = normalizeRole(req.user?.VaiTro);
+
+    if (!req.user || !allowed.includes(userRole)) {
+      return res.status(403).json({ message: "Không đủ quyền truy cập" });
     }
     next();
   };
