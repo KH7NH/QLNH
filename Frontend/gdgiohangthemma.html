@@ -98,7 +98,7 @@
         <h5 class="text-info">Sản phẩm đã thêm</h5>
         <div id="cartList" class="bg-white p-3 rounded shadow-sm"></div>
         <div class="text-right mt-2">
-          <button class="btn btn-danger btn-sm" onclick="clearCart()">🗑️ Xóa toàn bộ</button>
+          <button class="btn btn-danger btn-sm" id="btnClearCart">🗑️ Xóa toàn bộ</button>
         </div>
       </div>
 
@@ -123,9 +123,26 @@
     </div>
   </div>
 
-  <!-- CART SCRIPT -->
   <script>
     const CART_KEY = "cartItems";
+    const API_CREATE_ORDER = "http://localhost:3000/api/order";
+
+    function normalizeRole(s) {
+      return (s || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, "");
+    }
+
+    function getUser() {
+      try { return JSON.parse(localStorage.getItem("user") || "null"); }
+      catch { return null; }
+    }
+
+    function getToken() {
+      return localStorage.getItem("token");
+    }
 
     function getCart() {
       try { return JSON.parse(localStorage.getItem(CART_KEY)) || []; }
@@ -137,7 +154,6 @@
     }
 
     function removeItem(name) {
-      // 🔧 FIX: escape dấu ' trong tên món để tránh lỗi JS
       const cart = getCart().filter(i => i.name !== name);
       saveCart(cart);
       renderCart();
@@ -161,15 +177,16 @@
 
       let total = 0;
       box.innerHTML = cart.map(i => {
-        total += i.price * i.qty;
+        total += (Number(i.price) || 0) * (Number(i.qty) || 0);
+        const safeName = String(i.name || "").replace(/'/g, "\\'");
         return `
           <div class="cart-item">
-            <img src="${i.img}">
+            <img src="${i.img || ""}">
             <div class="info">
-              <strong>${i.name}</strong><br>
-              <small>${i.price.toLocaleString("vi-VN")}đ × ${i.qty}</small>
+              <strong>${i.name || ""}</strong><br>
+              <small>${(Number(i.price) || 0).toLocaleString("vi-VN")}đ × ${i.qty || 0}</small>
             </div>
-            <span class="remove-btn" onclick="removeItem('${i.name.replace(/'/g, "\\'")}')">
+            <span class="remove-btn" onclick="removeItem('${safeName}')">
               <i class="bi bi-trash"></i>
             </span>
           </div>
@@ -180,76 +197,14 @@
       document.getElementById("total").textContent = total.toLocaleString("vi-VN") + "đ";
     }
 
-    document.addEventListener("DOMContentLoaded", renderCart);
-  </script>
+    async function safeReadJson(res) {
+      try { return await res.json(); } catch { return null; }
+    }
 
-  <!-- ORDER SCRIPT -->
-  <script>
-    document.getElementById("btnDatHang").addEventListener("click", async () => {
-      const user = JSON.parse(localStorage.getItem("user") || "null");
-      const token = localStorage.getItem("token"); // 🔧 FIX: cần token khi gọi backend
-      const cart = getCart();
-
-      // 🔧 FIX: chuẩn hóa vai trò (tránh sai dấu)
-      const role = (user?.VaiTro || "").toLowerCase();
-
-      if (!user || (role !== "nhân viên" && role !== "quản lý")) {
-        alert("Chỉ Nhân viên và Quản lý được đặt hàng");
-        window.location.href = "gdlogin.html";
-        return;
-      }
-
-      if (!cart.length) {
-        alert("Giỏ hàng trống");
-        return;
-      }
-
-      const TenKhachHang = document.getElementById("customerName").value.trim();
-      if (!TenKhachHang) {
-        alert("Vui lòng nhập tên khách");
-        return;
-      }
-
-      const orderData = {
-        IDNV: user.IDNV,
-        TenKhachHang,
-        GhiChu: document.getElementById("note").value.trim(),
-        ChiTiet: cart.map(i => ({
-          IDMA: i.id,
-          SoLuong: i.qty,
-          DonGia: i.price
-        }))
-      };
-      console.log("orderData gửi lên:", orderData);
-      console.log("ChiTiet:", orderData.ChiTiet);
-      try {
-        const res = await fetch("http://localhost:3000/api/order/create", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + token // 🔧 FIX: thiếu Authorization
-          },
-          body: JSON.stringify(orderData)
-        });
-
-        if (!res.ok) throw new Error("API error");
-
-        alert("✅ Đặt hàng thành công");
-        clearCart();
-        document.getElementById("shippingForm").reset();
-      } catch (e) {
-        alert("❌ Không thể kết nối server");
-        console.error(e);
-      }
-    });
-  </script>
-
-  <!-- AUTH SCRIPT -->
-  <script>
     document.addEventListener("DOMContentLoaded", () => {
-      const user = JSON.parse(localStorage.getItem("user") || "null");
-
-      if (!user) {
+      // AUTH UI
+      const user = getUser();
+      if (!user || !getToken()) {
         alert("Bạn chưa đăng nhập");
         window.location.href = "gdlogin.html";
         return;
@@ -258,12 +213,90 @@
       document.getElementById("guestArea").style.display = "none";
       document.getElementById("userArea").style.display = "flex";
       document.getElementById("welcomeText").textContent =
-        `Xin chào, ${user.TenNV || user.Username}`;
+        `Xin chào, ${user.TenNV || user.Username || ""}`;
 
       document.getElementById("logoutBtn").onclick = () => {
         localStorage.clear();
         window.location.href = "gdlogin.html";
       };
+
+      // CART
+      renderCart();
+      document.getElementById("btnClearCart").addEventListener("click", clearCart);
+
+      // ORDER
+      document.getElementById("btnDatHang").addEventListener("click", async () => {
+        const user = getUser();
+        const token = getToken();
+        const cart = getCart();
+
+        if (!user || !token) {
+          alert("Bạn chưa đăng nhập hoặc token hết hạn");
+          window.location.href = "gdlogin.html";
+          return;
+        }
+
+        const role = normalizeRole(user?.VaiTro);
+        if (role !== "nhanvien" && role !== "quanly") {
+          alert("Chỉ Nhân viên và Quản lý được đặt hàng");
+          return;
+        }
+
+        if (!cart.length) {
+          alert("Giỏ hàng trống");
+          return;
+        }
+
+        const TenKhachHang = document.getElementById("customerName").value.trim();
+        if (!TenKhachHang) {
+          alert("Vui lòng nhập tên khách");
+          return;
+        }
+
+        const orderData = {
+          IDNV: user.IDNV,
+          TenKhachHang,
+          GhiChu: document.getElementById("note").value.trim(),
+          ChiTiet: cart.map(i => ({
+            IDMA: i.id,
+            SoLuong: i.qty
+            // DonGia không bắt buộc vì backend tính từ DB (JOIN MonAn)
+          }))
+        };
+
+        try {
+          const res = await fetch(API_CREATE_ORDER, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer " + token
+            },
+            body: JSON.stringify(orderData)
+          });
+
+          const data = await safeReadJson(res);
+
+          if (!res.ok) {
+            console.error("Create order failed:", res.status, data);
+            if (res.status === 401) {
+              alert("Token không hợp lệ / hết hạn. Vui lòng đăng nhập lại.");
+              localStorage.clear();
+              window.location.href = "gdlogin.html";
+              return;
+            }
+            alert(data?.message || `❌ Tạo đơn thất bại (HTTP ${res.status})`);
+            return;
+          }
+
+          alert("✅ Đặt hàng thành công");
+          clearCart();
+          document.getElementById("shippingForm").reset();
+
+        } catch (e) {
+          console.error(e);
+          alert("❌ Không thể kết nối server");
+        }
+      });
     });
   </script>
 </body>
